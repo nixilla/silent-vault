@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+VERSION="0.1"
+
+if [ -e $HOME/.vault.config ]; then
+    source $HOME/.vault.config;
+else
+    printf "\e[33mIt looks like the Silent Vault has not been initialized yet, please initialize it with -i\e[0m\n"
+fi
+
+declare -a options=("SV_MAIN_FOLDER" "SV_GPG_KEY_ID" "SV_BACKUP_FOLDERS")
+
 usage="$(basename "$0") [-h] [-v] [-i] [-o] [-c] [-a]
 
 where:
@@ -14,7 +24,7 @@ function about {
 
 cat << EOM
 
-Silent Vault - Encrypted Backup Script
+Silent Vault - Encrypted Backup Script (version $VERSION)
 https://github.com/nixilla/silent-vault
 
 Small bash script which automates creation and maintainance of the secure local folder,
@@ -23,12 +33,38 @@ where you can keep your sensitive information, like cryptocurrency wallets, secr
 It uses your GPG keys for encryption and signing and can be configured to use Dropbox
 and/or other cloud storage provider for backups.
 
-More information can be found at https://github.com/nixilla/silent-vault/README.md
+More information can be found at https://github.com/nixilla/silent-vault/blob/master/README.md
 EOM
 }
 
 function verify {
+
+    DONE=1
+
     echo "Verifying current configuration ..."
+
+    if type gpg &> /dev/null; then
+        printf "gpg available, \e[95m`gpg --version | head -1 | tail -1`\e[0m\n"
+    else
+        printf "\e[31mgpg not available\e[0m, please install GPG and generate (or import) a key, otherwise this software will not work\n"
+        DONE=0
+    fi
+
+    SV_MAIN_FOLDER="$HOME/Vault"
+
+    for i in "${options[@]}"
+    do
+        if [ ${!i} ]; then
+	        printf "$i = \e[95m${!i}\e[0m\n"
+        else
+            DONE=0
+            printf "$i \e[31mhas not been set\e[0m\n"
+        fi
+    done
+
+    if [ $DONE == 0 ]; then
+        printf "\nThe script is not configured, please initialize it with -i \n\n"
+    fi
 }
 
 function init {
