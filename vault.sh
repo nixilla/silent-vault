@@ -45,25 +45,34 @@ function verify {
     echo "Verifying current configuration ..."
 
     if type gpg &> /dev/null; then
-        printf "gpg available, \e[95m`gpg --version | head -1 | tail -1`\e[0m\n"
+        printf "gpg available: \e[95m`gpg --version | head -1 | tail -1`\e[0m\n"
     else
         printf "\e[31mgpg not available\e[0m, please install GPG and generate (or import) a key, otherwise this software will not work\n"
+        DONE=0
+    fi
+
+    if type tar &> /dev/null; then
+        printf "tar available: \e[95m`tar --version`\e[0m\n"
+    else
+        printf "\e[31mtar not available\e[0m, please install tar, otherwise this software will not work\n"
         DONE=0
     fi
 
     for i in "${options[@]}"
     do
         if [ ${!i} ]; then
-	        printf "$i = \e[95m${!i}\e[0m\n"
+	        printf "$i: \e[95m${!i}\e[0m\n"
         else
             DONE=0
-            printf "$i \e[31mhas not been set\e[0m\n"
+            printf "$i: \e[31mhas not been set\e[0m\n"
         fi
     done
 
     if [ $DONE == 0 ]; then
         printf "\nThe script is not configured, please initialize it with -i \n\n"
         printf "\e[31mverification failed\e[0m\n"
+    else
+        printf "\e[32mConfiguration OK\e[0m\n"
     fi
 }
 
@@ -121,10 +130,79 @@ EOM
 
 function open {
     echo "Opening the Vault ..."
+
+    if [ -e $HOME/.vault.opened ]; then
+        printf "\e[33mVault is already opened ... skipping\e[0m\n"
+        exit 1
+    fi
+
+    if [ -d $SV_MAIN_FOLDER ]; then
+        printf "\e[33mYour main folder already exists, please rename/remove it before coninuing ... skipping\e[0m\n"
+        exit 1
+    fi
+
+    FOLDERS=(${SV_BACKUP_FOLDERS//,/ })
+
+    for i in "${FOLDERS[@]}"; do
+        if [ -d $i ]; then
+            if [[ -e $i/Vault.tar.gz.gpg && -e $i/Vault.tar.gz.sig ]]; then
+                if gpg --verify $i/Vault.tar.gz.sig $i/Vault.tar.gz.gpg; then
+                    cp $i/Vault.tar.gz.gpg $HOME/
+                    break
+                fi
+            fi
+        fi
+    done
+
+    if [ -e $HOME/Vault.tar.gz.gpg ]; then
+        if gpg --output $HOME/Vault.tar.gz --decrypt $HOME/Vault.tar.gz.gpg; then
+            mkdir $SV_MAIN_FOLDER && tar -xvzf $HOME/Vault.tar.gz -C $SV_MAIN_FOLDER/ &> /dev/null
+            rm $HOME/Vault.tar.gz*
+            echo date +%s > $HOME/.vault.opened
+            printf "\e[32mVault is open\e[0m\n"
+        else
+            printf "\e[31mVault is not open\e[0m\n"
+        fi
+    else
+        printf "Looks like you creating Vault for the first time\n"
+        mkdir $SV_MAIN_FOLDER
+        printf "Your Vault has been created in \e[95m$SV_MAIN_FOLDER\e[0m\n"
+        echo date +%s > $HOME/.vault.opened
+        printf "\e[32mVault is open\e[0m\n"
+    fi
 }
 
 function close {
+
     echo "Closing the Vault ..."
+
+    if [ ! -e $HOME/.vault.opened ]; then
+        printf "\e[33mVault is not opened ... skipping\e[0m\n"
+        exit 1
+    fi
+
+    cd $HOME/Vault && tar -zcvf $HOME/Vault.tar.gz . &> /dev/null && cd $OLDPWD
+    gpg --encrypt --cipher-algo AES256 --trust-model always --recipient $SV_GPG_KEY_ID $HOME/Vault.tar.gz
+    if gpg --output $HOME/Vault.tar.gz.sig --detach-sign $HOME/Vault.tar.gz.gpg &> /dev/null; then
+
+        FOLDERS=(${SV_BACKUP_FOLDERS//,/ })
+        for i in "${FOLDERS[@]}"; do
+            if [ -d $i ]; then
+                echo -n "Copying encrypted Vault files to ${i} ... "
+                cp $HOME/Vault.tar.gz.* $i/
+                printf "\e[32mOK\e[0m\n"
+            fi
+        done
+
+        rm -rf $HOME/Vault*
+        rm $HOME/.vault.opened
+
+        printf "\e[32mVault is closed\e[0m\n"
+    else
+        printf "\e[31mVault is not closed\e[0m\n"
+    fi
+
+
 }
 
 while getopts ':chivoa' option; do
