@@ -181,7 +181,7 @@ function close {
         exit 1
     fi
 
-    cd $HOME/Vault && tar -zcvf $HOME/Vault.tar.gz . &> /dev/null && cd $OLDPWD
+    cd $SV_MAIN_FOLDER && tar -zcvf $HOME/Vault.tar.gz . &> /dev/null && cd $OLDPWD
     gpg --encrypt --cipher-algo AES256 --trust-model always --recipient $SV_GPG_KEY_ID $HOME/Vault.tar.gz
     if gpg --output $HOME/Vault.tar.gz.sig --detach-sign $HOME/Vault.tar.gz.gpg &> /dev/null; then
 
@@ -195,6 +195,7 @@ function close {
         done
 
         rm -rf $HOME/Vault*
+        rm -rf $SV_MAIN_FOLDER
         rm $HOME/.vault.opened
 
         printf "\e[32mVault is closed\e[0m\n"
