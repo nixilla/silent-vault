@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="0.1"
+VERSION="0.2"
 
 if [ -e $HOME/.vault.config ]; then
     source $HOME/.vault.config;
@@ -182,7 +182,19 @@ function close {
     fi
 
     cd $SV_MAIN_FOLDER && tar -zcvf $HOME/Vault.tar.gz . &> /dev/null && cd $OLDPWD
-    gpg --encrypt --cipher-algo AES256 --trust-model always --recipient $SV_GPG_KEY_ID $HOME/Vault.tar.gz
+
+    if [[ $SV_GPG_KEY_ID =~ "," ]]
+    then
+        RECIPIENTS=""
+        for i in $(echo $SV_GPG_KEY_ID | sed "s/,/ /g")
+        do
+            RECIPIENTS="${RECIPIENTS} --recipient ${i}"
+        done
+    else
+        RECIPIENTS="--recipient ${SV_GPG_KEY_ID}"
+    fi
+
+    gpg --encrypt --cipher-algo AES256 --trust-model always ${RECIPIENTS} $HOME/Vault.tar.gz
     if gpg --output $HOME/Vault.tar.gz.sig --detach-sign $HOME/Vault.tar.gz.gpg &> /dev/null; then
 
         FOLDERS=(${SV_BACKUP_FOLDERS//,/ })
